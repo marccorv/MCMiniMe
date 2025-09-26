@@ -1,8 +1,8 @@
-// app/layout.tsx (minimal safe shell)
+// app/layout.tsx
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://mc-mini-me.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: "MC Mini Me",
   description: "Chatbot UI",
 };
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ minHeight: "100dvh" }}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
