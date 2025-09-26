@@ -1,6 +1,10 @@
 // app/page.tsx
-import { redirect } from "next/navigation";
-
-export default function Page() {
-  redirect("/en"); // change "en" only if your default locale is different
+export default function HomePage() {
+  return (
+    <main style={{padding: 24}}>
+      <h1>Chatbot UI</h1>
+      <p>Home is working.</p>
+      <a href="/login">Go to Login</a>
+    </main>
+  );
 }
