@@ -1,8 +1,10 @@
+// app/[locale]/layout.tsx
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalState } from "@/components/utility/global-state";
 import { Providers } from "@/components/utility/providers";
 import TranslationsProvider from "@/components/utility/translations-provider";
-import initTranslations from "@/lib/i18n";
+import initTranslations from "@/components/utility/translations-provider"; // NOTE: if your project keeps initTranslations in "@/lib/i18n", revert to that import
+import initI18n from "@/lib/i18n"; // <-- if your original was this, keep it
 import { Database } from "@/supabase/types";
 import { createServerClient } from "@supabase/ssr";
 import type { Metadata, Viewport } from "next";
@@ -12,6 +14,7 @@ import { ReactNode } from "react";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
+
 const APP_NAME = "Chatbot UI";
 const APP_DEFAULT_TITLE = "Chatbot UI";
 const APP_TITLE_TEMPLATE = "%s - Chatbot UI";
@@ -19,53 +22,33 @@ const APP_DESCRIPTION = "Chabot UI PWA!";
 
 interface RootLayoutProps {
   children: ReactNode;
-  params: {
-    locale: string;
-  };
+  params: { locale: string };
 }
 
 export const metadata: Metadata = {
-  // REQUIRED: this is the only new line we needed to add
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://mc-mini-me.vercel.app"),
-
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://mc-mini-me.vercel.app"
+  ),
   applicationName: APP_NAME,
-  title: {
-    default: APP_DEFAULT_TITLE,
-    template: APP_TITLE_TEMPLATE,
-  },
+  title: { default: APP_DEFAULT_TITLE, template: APP_TITLE_TEMPLATE },
   description: APP_DESCRIPTION,
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black",
-    title: APP_DEFAULT_TITLE,
-    // startUpImage: [],
-  },
-  formatDetection: {
-    telephone: false,
-  },
+  appleWebApp: { capable: true, statusBarStyle: "black", title: APP_DEFAULT_TITLE },
+  formatDetection: { telephone: false },
   openGraph: {
     type: "website",
     siteName: APP_NAME,
-    title: {
-      default: APP_DEFAULT_TITLE,
-      template: APP_TITLE_TEMPLATE,
-    },
+    title: { default: APP_DEFAULT_TITLE, template: APP_TITLE_TEMPLATE },
     description: APP_DESCRIPTION,
   },
   twitter: {
     card: "summary",
-    title: {
-      default: APP_DEFAULT_TITLE,
-      template: APP_TITLE_TEMPLATE,
-    },
+    title: { default: APP_DEFAULT_TITLE, template: APP_TITLE_TEMPLATE },
     description: APP_DESCRIPTION,
   },
 };
 
-export const viewport: Viewport = {
-  themeColor: "#000000",
-};
+export const viewport: Viewport = { themeColor: "#000000" };
 
 const i18nNamespaces = ["translation"];
 
@@ -74,6 +57,7 @@ export default async function RootLayout({
   params: { locale },
 }: RootLayoutProps) {
   const cookieStore = cookies();
+
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -87,7 +71,8 @@ export default async function RootLayout({
   );
 
   const session = (await supabase.auth.getSession()).data.session;
-  const { t, resources } = await initTranslations(locale, i18nNamespaces);
+
+  const { resources } = await initI18n(locale, i18nNamespaces);
 
   return (
     <html lang="en" suppressHydrationWarning>
