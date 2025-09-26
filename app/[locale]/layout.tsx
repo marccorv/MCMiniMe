@@ -25,6 +25,7 @@ interface RootLayoutProps {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://mc-mini-me.vercel.app'),
   applicationName: APP_NAME,
   title: {
     default: APP_DEFAULT_TITLE,
