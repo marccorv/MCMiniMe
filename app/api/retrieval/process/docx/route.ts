@@ -1,10 +1,5 @@
 export const runtime = "edge";
 
-/**
- * OpenAI-only DOCX ingestion route.
- * Local embeddings are disabled (no onnxruntime).
- */
-
 import { processDocx } from "@/lib/retrieval/processing";
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers";
 import { Database } from "@/supabase/types";
@@ -23,17 +18,13 @@ export async function POST(req: Request) {
       fileExtension: string;
     };
 
-    // Supabase admin client (for writes)
     const supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Current user profile (holds optional Azure creds)
     const profile = await getServerProfile();
 
-    // ---- Local embeddings are NOT supported on Vercel ----
-    // If the UI still sends "local", hard stop:
     if (embeddingsProvider !== "openai") {
       return NextResponse.json(
         { error: "Local embeddings are disabled on this deployment." },
@@ -41,7 +32,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ---- Parse the source into chunks ----
     let chunks: FileItemChunk[] = [];
     switch (fileExtension) {
       case "docx":
@@ -60,7 +50,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ---- OpenAI client (supports Azure or standard) ----
     let openai: OpenAI;
     if (profile.use_azure_openai) {
       await checkApiKey(profile.azure_openai_api_key, "Azure OpenAI");
@@ -78,7 +67,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // ---- Create embeddings with OpenAI ----
     const resp = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: chunks.map((c) => c.content),
@@ -86,20 +74,14 @@ export async function POST(req: Request) {
 
     const vectors = resp.data.map((d) => d.embedding);
 
-    // ---- Example upsert (adjust table/columns to your schema) ----
-    // If you already have your own upsert logic elsewhere, keep that instead.
     const items = chunks.map((c, i) => ({
       file_id: fileId,
       content: c.content,
-      openai_embedding: vectors[i], // vector column (e.g., 1536 dims)
+      openai_embedding: vectors[i],
       tokens: c.tokens ?? 0,
     }));
 
-    // Replace "file_items" with your actual table name
-    const { error } = await supabaseAdmin
-      .from("file_items")
-      .insert(items);
-
+    const { error } = await supabaseAdmin.from("file_items").insert(items);
     if (error) {
       return NextResponse.json(
         { error: `Supabase insert failed: ${error.message}` },
