@@ -61,42 +61,25 @@ export async function POST(req: Request) {
       })
     }
 
-    if (embeddingsProvider === "openai") {
-      const response = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: chunks.map(chunk => chunk.content)
-      })
+// --- Build embeddings (OpenAI vs Local WASM) ---
+let embeddings: number[][] = [];
 
-      embeddings = response.data.map((item: any) => {
-        return item.embedding
-      })
-    } else if (embeddingsProvider === "local") {
-      const embeddingPromises = chunks.map(async chunk => {
-        try {
-          return await generateLocalEmbedding(chunk.content)
-        } catch (error) {
-          console.error(`Error generating embedding for chunk: ${chunk}`, error)
-          return null
-        }
-      })
+if (embeddingsProvider === "openai") {
+  // Keep your existing OpenAI (or Azure OpenAI) client created above.
+  const response = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: chunks.map((chunk) => chunk.content),
+  });
 
-      embeddings = await Promise.all(embeddingPromises)
-    }
+  embeddings = response.data.map((item: any) => item.embedding as number[]);
+} else {
+  // Local path: Xenova (WASM) – no native binaries
+  embeddings = await Promise.all(
+    chunks.map((chunk) => generateLocalEmbedding(chunk.content))
+  );
+}
+// --- end embeddings ---
 
-    const file_items = chunks.map((chunk, index) => ({
-      file_id: fileId,
-      user_id: profile.user_id,
-      content: chunk.content,
-      tokens: chunk.tokens,
-      openai_embedding:
-        embeddingsProvider === "openai"
-          ? ((embeddings[index] || null) as any)
-          : null,
-      local_embedding:
-        embeddingsProvider === "local"
-          ? ((embeddings[index] || null) as any)
-          : null
-    }))
 
     await supabaseAdmin.from("file_items").upsert(file_items)
 
