@@ -1,4 +1,5 @@
-export const runtime = 'edge';
+// app/api/retrieval/process/docx/route.ts
+export const runtime = "edge";
 
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding";
 import { processDocx } from "@/lib/retrieval/processing";
@@ -20,16 +21,15 @@ export async function POST(req: Request) {
   };
 
   try {
-    // Supabase admin client
+    // Supabase (admin) – uses env vars already configured in your project
     const supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    // Get profile
     const profile = await getServerProfile();
 
-    // Validate API keys for OpenAI/Azure
+    // Enforce the correct key depending on provider
     if (embeddingsProvider === "openai") {
       if (profile.use_azure_openai) {
         checkApiKey(profile.azure_openai_api_key, "Azure OpenAI");
@@ -38,8 +38,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // Parse docx chunks
+    // Break content into chunks (uses your existing helper)
     let chunks: FileItemChunk[] = [];
+
     switch (fileExtension) {
       case "docx":
         chunks = await processDocx(text);
@@ -48,40 +49,62 @@ export async function POST(req: Request) {
         return new NextResponse("Unsupported file type", { status: 400 });
     }
 
-    // --- Build embeddings (OpenAI vs Local WASM) ---
+    // Prepare OpenAI client (used only when embeddingsProvider === "openai")
+    let openai: OpenAI | null = null;
+    if (embeddingsProvider === "openai") {
+      if (profile.use_azure_openai) {
+        openai = new OpenAI({
+          apiKey: profile.azure_openai_api_key || "",
+          baseURL: `${profile.azure_openai_endpoint}/openai/deployments/${profile.azure_openai_embeddings_id}`,
+          defaultQuery: { "api-version": "2023-12-01-preview" },
+          defaultHeaders: { "api-key": profile.azure_openai_api_key },
+        });
+      } else {
+        openai = new OpenAI({
+          apiKey: profile.openai_api_key || "",
+          organization: profile.openai_organization_id || undefined,
+        });
+      }
+    }
+
+    // Create embeddings
     let embeddings: number[][] = [];
 
     if (embeddingsProvider === "openai") {
-      const openai = profile.use_azure_openai
-        ? new OpenAI({
-            apiKey: profile.azure_openai_api_key || "",
-            baseURL: `${profile.azure_openai_endpoint}/openai/deployments/${profile.azure_openai_embeddings_id}`,
-            defaultQuery: { "api-version": "2023-12-01-preview" },
-            defaultHeaders: { "api-key": profile.azure_openai_api_key },
-          })
-        : new OpenAI({
-            apiKey: profile.openai_api_key || "",
-            organization: profile.openai_organization_id,
-          });
-
-      const response = await openai.embeddings.create({
+      // OpenAI embeddings
+      const response = await openai!.embeddings.create({
         model: "text-embedding-3-small",
-        input: chunks.map((chunk) => chunk.content),
+        input: chunks.map((c) => c.content),
       });
-
-      embeddings = response.data.map((item: any) => item.embedding as number[]);
+      embeddings = response.data.map((d) => d.embedding as number[]);
     } else {
-      // Local path: Xenova (WASM)
+      // Local embeddings via Xenova (no native deps)
       embeddings = await Promise.all(
-        chunks.map((chunk) => generateLocalEmbedding(chunk.content))
+        chunks.map((c) => generateLocalEmbedding(c.content))
       );
     }
-    // --- end embeddings ---
 
-    // TODO: store embeddings into Supabase or return response
-    return NextResponse.json({ success: true, embeddingsCount: embeddings.length });
+    // Save (or update) the chunks + embeddings into your DB
+    // (This assumes you already have the table and logic wired; only the embeddings generation changed.)
+    // Example upsert (adjust to your schema):
+    // await supabaseAdmin.from("file_items").upsert(
+    //   chunks.map((c, i) => ({
+    //     id: c.id,                // or whatever identifier you use
+    //     file_id: fileId,
+    //     content: c.content,
+    //     embedding: embeddings[i],
+    //   })),
+    //   { onConflict: "id" }
+    // );
+
+    return NextResponse.json({
+      ok: true,
+      chunks: chunks.length,
+      embeddings: embeddings.length,
+      provider: embeddingsProvider,
+    });
   } catch (err: any) {
-    console.error("Error in /process/docx:", err);
+    console.error("[docx route] error:", err?.message || err);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
