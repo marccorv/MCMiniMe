@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding";
 import { processDocx } from "@/lib/retrieval/processing";
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers";
