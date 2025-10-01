@@ -25,6 +25,8 @@
     "test": "jest"
   },
   "dependencies": {
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.4.0",
     "@anthropic-ai/sdk": "^0.18.0",
     "@apidevtools/json-schema-ref-parser": "^11.1.0",
     "@azure/openai": "^1.0.0-beta.8",
