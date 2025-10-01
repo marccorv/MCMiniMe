@@ -2,17 +2,14 @@
   "name": "chatbot-ui",
   "version": "2.0.0",
   "private": true,
+  "engines": {
+    "node": ">=18.17 <23"
+  },
   "scripts": {
-    "chat": "supabase start && npm run db-types && npm run dev",
-    "restart": "supabase stop && npm run chat",
-    "update": "git pull origin main && npm run db-migrate && npm run db-types",
-    "prepare": "husky install",
-    "clean": "npm run format:write",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "analyze": "ANALYZE=true npm run build",
-    "preview": "next build && next start",
+    "prepare": "husky install",
     "type-check": "tsc --noEmit",
     "format:write": "prettier --write \"{app,lib,db,components,context,types}/**/*.{ts,tsx}\" --cache",
     "format:check": "prettier --check \"{app,lib,db,components,context,types}/**/*.{ts,tsx}\" --cache",
@@ -94,12 +91,12 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "20.11.30",
-    "@types/react": "18.2.45",
-    "@types/react-dom": "18.2.18",
     "eslint": "8.57.0",
     "eslint-config-next": "14.1.0",
     "husky": "9.0.11",
     "typescript": "5.4.5"
+  },
+  "overrides": {
+    "@types/*": "0.0.0"
   }
 }
