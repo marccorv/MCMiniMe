@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 // app/api/retrieval/process/docx/route.ts
 import { processDocx } from "@/lib/retrieval/processing";
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers";
