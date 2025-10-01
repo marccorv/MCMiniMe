@@ -1,6 +1,7 @@
+// app/api/retrieval/process/docx/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// app/api/retrieval/process/docx/route.ts
+
 import { processDocx } from "@/lib/retrieval/processing";
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers";
 import { Database } from "@/supabase/types";
@@ -8,8 +9,6 @@ import { FileItemChunk } from "@/types";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-
-export const runtime = "edge";
 
 export async function POST(req: Request) {
   const json = await req.json();
