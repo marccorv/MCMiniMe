@@ -4,17 +4,15 @@ export const dynamic = 'force-dynamic';
 
 import { checkApiKey, getServerProfile } from '@/lib/server/server-chat-helpers';
 import { Database } from '@/supabase/types';
-import { FileItemChunk } from '@/types';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 export async function POST(req: Request) {
-  // lazy-load the docx processor so fs/pdf deps aren’t bundled at build
-  const { processDocx } = await import('@/lib/retrieval/processing');
+  // ⬇️ Lazy-load the docx-only processor so nothing fs/pdf/langchain is bundled
+  const { processDocx } = await import('@/lib/retrieval/processing/docx-only');
 
-  const json = await req.json();
-  const { text } = json as { text: string };
+  const { text } = (await req.json()) as { text: string };
 
   const supabaseAdmin = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,10 +24,10 @@ export async function POST(req: Request) {
 
   const openai = new OpenAI({ apiKey: profile.openai_api_key });
 
-  // split DOCX text into chunks (your lib already implements this)
-  const chunks: FileItemChunk[] = await processDocx(text);
+  // Split text into chunks (no fs/pdf/langchain anywhere)
+  const chunks = await processDocx(text);
 
-  // OpenAI embeddings only — no local/onnx code runs here
+  // Get embeddings from OpenAI (server-safe)
   const response = await openai.embeddings.create({
     model: 'text-embedding-3-small',
     input: chunks.map((c) => c.content),
