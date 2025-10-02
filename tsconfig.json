@@ -15,6 +15,6 @@
     "esModuleInterop": true,
     "types": ["node", "react"]
   },
-  "include": ["next-env.d.ts", "pages/**/*", "lib/**/*", "scripts/**/*"],
+  "include": ["next-env.d.ts", "pages/**/*", "lib/supabaseClient.ts", "scripts/**/*"],
   "exclude": ["node_modules", ".next", "**/*.test.*"]
 }
