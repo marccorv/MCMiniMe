@@ -22,7 +22,7 @@ async function embed(text: string): Promise<number[]> {
 async function run(dir = './docs') {
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.md') || f.endsWith('.txt'));
   if (files.length === 0) {
-    console.log(\`No files found in \${dir}. Create docs/example.md and run again.\`);
+    console.log(\`No files found in ${dir}. Create docs/example.md and run again.`);
     return;
   }
   for (const f of files) {
