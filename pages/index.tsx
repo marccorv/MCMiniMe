@@ -1,93 +1,103 @@
+// ~/mcminime-clone/pages/index.tsx
 import { useState } from "react";
 
-type Source = { id?: string; title?: string; content?: string; similarity?: number };
+type AskResult = {
+  answer?: string;
+  sources?: Array<{ title?: string; similarity?: number } | string>;
+  error?: string;
+};
 
 export default function Home() {
-  const [question, setQuestion] = useState("What does the second paragraph of the test doc say?");
-  const [answer, setAnswer] = useState<string>("");
-  const [sources, setSources] = useState<Source[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [q, setQ] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [sources, setSources] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  async function ask() {
-    setLoading(true);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [ingestBusy, setIngestBusy] = useState(false);
+
+  async function onAsk(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
     setAnswer("");
     setSources([]);
-    setError("");
-
     try {
-      const res = await fetch("/api/ask", {
+      const r = await fetch("/api/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // API accepts either {question} or {q}; we’ll send {question}
-        body: JSON.stringify({ question }),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: q }),
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Unknown error");
-        return;
-      }
-
-      setAnswer(data?.answer ?? "");
-      setSources(Array.isArray(data?.sources) ? data.sources : []);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+      const data: AskResult = await r.json();
+      if (!r.ok) throw new Error(data?.error || r.statusText);
+      setAnswer(data.answer || "");
+      const src = Array.isArray(data.sources)
+        ? data.sources.map((s: any) => s?.title ?? String(s))
+        : [];
+      setSources(src);
+    } catch (err: any) {
+      setAnswer(`Error: ${err.message}`);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
+  async function onIngest(e: React.FormEvent) {
+    e.preventDefault();
+    setIngestBusy(true);
+    try {
+      const r = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error || r.statusText);
+      alert(`Inserted: ${data.id}`);
+      setTitle("");
+      setContent("");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIngestBusy(false);
+    }
+  }
+
+  const box = { width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc" } as const;
+
   return (
-    <main style={{ maxWidth: 760, margin: "48px auto", padding: 16, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto" }}>
-      <h1 style={{ fontSize: 36, marginBottom: 16 }}>MCMiniMe clone</h1>
+    <main style={{ maxWidth: 760, margin: "40px auto", padding: 16, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" }}>
+      <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>MCMiniMe clone</h1>
 
-      <textarea
-        rows={3}
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        placeholder="Ask anything about your docs…"
-        style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd", fontSize: 16 }}
-      />
-
-      <button
-        onClick={ask}
-        disabled={loading || !question.trim()}
-        style={{
-          marginTop: 12,
-          padding: "10px 16px",
-          borderRadius: 8,
-          border: "1px solid #111",
-          background: loading ? "#eee" : "#111",
-          color: loading ? "#111" : "#fff",
-          cursor: loading ? "wait" : "pointer",
-        }}
-      >
-        {loading ? "Thinking…" : "Ask"}
-      </button>
-
-      <h2 style={{ marginTop: 28 }}>Answer</h2>
-      {error ? (
-        <pre style={{ color: "#c00", background: "#fee", padding: 12, borderRadius: 8, whiteSpace: "pre-wrap" }}>{error}</pre>
-      ) : (
-        <pre style={{ background: "#f7f7f7", padding: 12, borderRadius: 8, whiteSpace: "pre-wrap", minHeight: 64 }}>
-          {answer || (loading ? "" : "—")}
+      <section style={{ border: "1px solid #eee", padding: 16, borderRadius: 10 }}>
+        <h2>Ask</h2>
+        <form onSubmit={onAsk}>
+          <textarea rows={3} style={box} placeholder="Ask about your docs…" value={q} onChange={e => setQ(e.target.value)} />
+          <button disabled={busy || !q.trim()} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 8 }}>
+            {busy ? "Thinking…" : "Ask"}
+          </button>
+        </form>
+        <pre style={{ marginTop: 12, background: "#f7f7f7", padding: 12, borderRadius: 8, whiteSpace: "pre-wrap", minHeight: 60 }}>
+          {answer || "—"}
         </pre>
-      )}
+        {!!sources.length && (
+          <>
+            <h3 style={{ marginTop: 12 }}>Sources</h3>
+            <ul>{sources.map((s, i) => (<li key={i}>{s}</li>))}</ul>
+          </>
+        )}
+      </section>
 
-      {sources.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 16 }}>Sources</h3>
-          <ul>
-            {sources.map((s, i) => (
-              <li key={s.id ?? i}>
-                <strong>{s.title ?? "Untitled"}</strong>
-                {typeof s.similarity === "number" ? ` — sim: ${s.similarity.toFixed(3)}` : ""}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <section style={{ border: "1px solid #eee", padding: 16, borderRadius: 10, marginTop: 20 }}>
+        <h2>Add document</h2>
+        <form onSubmit={onIngest}>
+          <input style={{ ...box, marginBottom: 8 }} placeholder="Title, e.g. meeting-notes.md" value={title} onChange={e => setTitle(e.target.value)} />
+          <textarea rows={8} style={box} placeholder="Paste markdown or text…" value={content} onChange={e => setContent(e.target.value)} />
+          <button disabled={ingestBusy || !title.trim() || !content.trim()} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 8 }}>
+            {ingestBusy ? "Saving…" : "Save"}
+          </button>
+        </form>
+      </section>
     </main>
   );
 }
