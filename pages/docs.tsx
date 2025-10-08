@@ -1,17 +1,17 @@
-// pages/docs.tsx
-import { useEffect, useState } from "react";
+'use client';
+import { useEffect, useState } from 'react';
 
-type Doc = { id: string; title: string; preview?: string; created_at: string };
+type DocRow = { id: string; title: string; created_at: string; preview?: string };
 
 export default function Docs() {
-  const [docs, setDocs] = useState<Doc[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/documents");
+    const res = await fetch('/api/documents');
     const json = await res.json();
     setDocs(json);
     setLoading(false);
@@ -19,55 +19,53 @@ export default function Docs() {
 
   async function addDoc(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/ingest", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+    const res = await fetch('/api/ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title, content }),
     });
-    if (res.ok) {
-      setTitle("");
-      setContent("");
-      await load();
-    } else {
-      alert(await res.text());
+    if (!res.ok) {
+      const t = await res.text();
+      alert(`Insert failed: ${t}`);
+      return;
     }
+    setTitle('');
+    setContent('');
+    await load();
   }
 
   async function del(id: string) {
-    const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      setDocs(docs.filter((d) => d.id !== id));
-    } else {
+    if (!confirm('Delete this doc?')) return;
+    const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok) {
       alert(await res.text());
+      return;
     }
+    await load();
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   return (
-    <main style={{ maxWidth: 780, margin: "32px auto", padding: 16 }}>
+    <main style={{ maxWidth: 780, margin: '32px auto', padding: 16 }}>
       <h1>Documents</h1>
 
-      <section style={{ marginTop: 24, padding: 16, border: "1px solid #eee", borderRadius: 8 }}>
+      <section style={{ marginTop: 24, padding: 16, border: '1px solid #eee', borderRadius: 8 }}>
         <h2 style={{ marginTop: 0 }}>Add a document</h2>
         <form onSubmit={addDoc}>
           <input
             placeholder="Title"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={{ width: "100%", padding: 8, marginBottom: 8 }}
+            onChange={e => setTitle(e.target.value)}
+            style={{ width: '100%', padding: 8, marginBottom: 8 }}
             required
           />
           <textarea
             placeholder="Content"
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={e => setContent(e.target.value)}
             rows={6}
-            style={{ width: "100%", padding: 8, fontFamily: "monospace" }}
+            style={{ width: '100%', padding: 8, fontFamily: 'monospace' }}
             required
           />
           <div style={{ marginTop: 8 }}>
@@ -78,21 +76,15 @@ export default function Docs() {
 
       <section style={{ marginTop: 32 }}>
         <h2 style={{ marginTop: 0 }}>
-          Stored ({docs.length}) {loading ? "…loading" : ""}
+          Stored ({docs.length}) {loading ? '…loading' : ''}
         </h2>
         <ul>
-          {docs.map((d) => (
+          {docs.map(d => (
             <li key={d.id} style={{ marginBottom: 12 }}>
-              <strong>{d.title}</strong>{" "}
-              <small style={{ color: "#666" }}>
-                — {new Date(d.created_at).toLocaleString()}
-              </small>
-              <div style={{ whiteSpace: "pre-wrap", color: "#444" }}>
-                {d.preview ?? ""}
-              </div>
-              <button onClick={() => del(d.id)} style={{ marginTop: 4 }}>
-                Delete
-              </button>
+              <strong>{d.title}</strong>{' '}
+              <small style={{ color: '#666' }}>{new Date(d.created_at).toLocaleString()}</small>
+              <div style={{ whiteSpace: 'pre-wrap', color: '#444' }}>{d.preview ?? ''}</div>
+              <button onClick={() => del(d.id)} style={{ marginTop: 4 }}>Delete</button>
             </li>
           ))}
         </ul>
