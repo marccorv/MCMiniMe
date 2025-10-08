@@ -1,71 +1,88 @@
-'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-type DocRow = { id: string; title: string; created_at: string; preview?: string };
+type Doc = { id: string; title: string; preview?: string; created_at: string };
 
-export default function Docs() {
-  const [docs, setDocs] = useState<DocRow[]>([]);
+export default function DocsPage() {
+  const [list, setList] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(false);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [err, setErr] = useState("");
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
 
   async function load() {
     setLoading(true);
-    const res = await fetch('/api/documents');
-    const json = await res.json();
-    setDocs(json);
-    setLoading(false);
-  }
-
-  async function addDoc(e: React.FormEvent) {
-    e.preventDefault();
-    const res = await fetch('/api/ingest', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title, content }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      alert(`Insert failed: ${t}`);
-      return;
+    setErr("");
+    try {
+      const res = await fetch("/api/documents");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => []);
+      setList(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setErr(e?.message || String(e));
+    } finally {
+      setLoading(false);
     }
-    setTitle('');
-    setContent('');
-    await load();
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this doc?')) return;
-    const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!res.ok) {
-      alert(await res.text());
-      return;
+    if (!id) return;
+    try {
+      await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setList((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      // ignore
     }
-    await load();
   }
 
-  useEffect(() => { load(); }, []);
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !content.trim()) return;
+    try {
+      const res = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), content: content.trim() }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setTitle("");
+      setContent("");
+      await load();
+    } catch (e: any) {
+      alert(e?.message || String(e));
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const safe = Array.isArray(list) ? list : [];
 
   return (
-    <main style={{ maxWidth: 780, margin: '32px auto', padding: 16 }}>
+    <main style={{ maxWidth: 780, margin: "32px auto", padding: 16 }}>
       <h1>Documents</h1>
 
-      <section style={{ marginTop: 24, padding: 16, border: '1px solid #eee', borderRadius: 8 }}>
+      <section style={{ marginTop: 24, padding: 16, border: "1px solid #eee", borderRadius: 8 }}>
         <h2 style={{ marginTop: 0 }}>Add a document</h2>
-        <form onSubmit={addDoc}>
+        <form onSubmit={add}>
           <input
             placeholder="Title"
             value={title}
-            onChange={e => setTitle(e.target.value)}
-            style={{ width: '100%', padding: 8, marginBottom: 8 }}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ width: "100%", padding: 8, marginBottom: 8 }}
             required
           />
           <textarea
             placeholder="Content"
             value={content}
-            onChange={e => setContent(e.target.value)}
+            onChange={(e) => setContent(e.target.value)}
             rows={6}
-            style={{ width: '100%', padding: 8, fontFamily: 'monospace' }}
+            style={{ width: "100%", padding: 8, fontFamily: "monospace" }}
             required
           />
           <div style={{ marginTop: 8 }}>
@@ -76,15 +93,22 @@ export default function Docs() {
 
       <section style={{ marginTop: 32 }}>
         <h2 style={{ marginTop: 0 }}>
-          Stored ({docs.length}) {loading ? '…loading' : ''}
+          Stored ({safe.length}) {loading ? "…loading" : ""}
         </h2>
+        {err && <div style={{ color: "crimson" }}>Error: {err}</div>}
         <ul>
-          {docs.map(d => (
+          {safe.map((d) => (
             <li key={d.id} style={{ marginBottom: 12 }}>
-              <strong>{d.title}</strong>{' '}
-              <small style={{ color: '#666' }}>{new Date(d.created_at).toLocaleString()}</small>
-              <div style={{ whiteSpace: 'pre-wrap', color: '#444' }}>{d.preview ?? ''}</div>
-              <button onClick={() => del(d.id)} style={{ marginTop: 4 }}>Delete</button>
+              <strong>{d.title}</strong>{" "}
+              <small style={{ color: "#666" }}>
+                {new Date(d.created_at).toLocaleString()}
+              </small>
+              <div style={{ whiteSpace: "pre-wrap", color: "#444" }}>
+                {d.preview ?? ""}
+              </div>
+              <button onClick={() => del(d.id)} style={{ marginTop: 4 }}>
+                Delete
+              </button>
             </li>
           ))}
         </ul>
