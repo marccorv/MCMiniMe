@@ -1,76 +1,79 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
-import { pipeline, env as xenovaEnv } from "@xenova/transformers";
+import OpenAI from "openai";
+import { pipeline, env as xenEnv } from "@xenova/transformers";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
-  auth: { persistSession: false },
-});
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
 
-let cachedEmbedder:
-  | ((text: string) => Promise<number[]>)
-  | null = null;
+let cachedEmbedder: ((t: string) => Promise<number[]>) | null = null;
 
 async function getEmbedder() {
   if (cachedEmbedder) return cachedEmbedder;
 
-  xenovaEnv.allowLocalModels = true;
-  xenovaEnv.localModelPath = ".transformers-cache";
+  xenEnv.allowLocalModels = true;
+  xenEnv.localModelPath = ".transformers-cache";
 
   const pipe = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
   cachedEmbedder = async (text: string) => {
     const out = await pipe(text, { pooling: "mean", normalize: true });
-    return Array.from(out.data as Float32Array) as number[]; // length 384
+    return Array.from(out.data as Float32Array) as unknown as number[];
   };
   return cachedEmbedder;
 }
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // your Groq API key
   baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
 });
 const MODEL = process.env.OPENAI_MODEL || "llama-3.1-8b-instant";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+function readBody(req: NextApiRequest): any {
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Use POST" });
+    if (typeof req.body === "object" && req.body) return req.body;
+    if (typeof req.body === "string" && req.body.trim()) {
+      return JSON.parse(req.body);
     }
-    let body: any = req.body;
-    if (!body || typeof body === "string") {
-      try { body = JSON.parse(body || "{}"); } catch { body = {}; }
-    }
+  } catch (_) {}
+  return {};
+}
 
-    const question: string | undefined = body.question || body.q;
-    if (!question || typeof question !== "string" || !question.trim()) {
-      return res.status(400).json({ error: "Missing body.question (or q)" });
-    }
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Use POST" });
+  }
 
-    const embed = await getEmbedder();
-    const queryEmbedding = await embed(question);
+  const body = readBody(req);
+  const question: string | undefined = body.q ?? body.question;
 
-    const { data: matches, error: matchErr } = await supabase.rpc(
-      "match_documents",
-      { query_embedding: queryEmbedding, match_count: 5 }
-    );
-    if (matchErr) {
-      console.error("match_documents error:", matchErr);
-      return res.status(500).json({ error: `match_documents: ${matchErr.message}` });
-    }
+  if (!question || typeof question !== "string") {
+    return res.status(400).json({ error: "Missing body.q / body.question" });
+  }
 
-    const context = (matches || [])
-      .map((m: any) => `# ${m.title}\n${m.content}`)
-      .join("\n\n---\n\n")
-      .slice(0, 6000); // keep prompt sane
+  try {
+    const embed = await (await getEmbedder())(question);
+
+    const { data: matches, error } = await supabase.rpc("match_documents", {
+      query_embedding: embed,
+      match_count: 5,
+    });
+    if (error) return res.status(500).json({ error: `match_documents: ${error.message}` });
+
+    const context =
+      (matches ?? [])
+        .map((m: any) => `# ${m.title}\n${m.content}`)
+        .join("\n\n") || "No relevant documents.";
 
     const system =
-      "You are a helpful assistant. Answer using ONLY the provided documents. If unsure, say you don't know.";
+      "You answer questions using ONLY the provided documents. " +
+      "If the answer is not present, say you don't know. Keep answers short.";
 
     const prompt = `Documents:\n\n${context}\n\nQuestion: ${question}\nAnswer:`;
 
-    const r = await client.chat.completions.create({
+    const r = await openai.chat.completions.create({
       model: MODEL,
       messages: [
         { role: "system", content: system },
@@ -80,9 +83,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const answer = r.choices?.[0]?.message?.content ?? "";
-    return res.status(200).json({ answer, sources: matches ?? [] });
+    const sources = (matches ?? []).map((m: any) => m.title);
+
+    return res.status(200).json({ answer, sources });
   } catch (e: any) {
-    console.error("ask route error:", e);
-    return res.status(500).json({ error: e?.message || String(e) });
+    return res.status(500).json({ error: e?.message ?? String(e) });
   }
 }
