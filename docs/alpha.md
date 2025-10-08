@@ -1,3 +1,0 @@
-Project Alpha
-
-Kickoff notes...
