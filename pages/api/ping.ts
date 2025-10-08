@@ -1,22 +1,24 @@
-// pages/api/ping.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import OpenAI from "openai";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY!,
-      baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-    });
+export default function handler(_req: NextApiRequest, res: NextApiResponse) {
+  const redact = (s?: string | null) =>
+    s ? `${s.slice(0, 4)}…(len:${s.length})` : "MISSING";
 
-    const r = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: 'Say "pong" only.' }],
-      temperature: 0,
-    });
-
-    res.status(200).json({ ok: true, text: r.choices[0]?.message?.content ?? "" });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: (e as any)?.message || String(e) });
-  }
+  res.status(200).json({
+    ok: true,
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL:
+        process.env.NEXT_PUBLIC_SUPABASE_URL || "MISSING",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: redact(
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      ),
+      SUPABASE_SERVICE_ROLE_KEY: redact(
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      ),
+      OPENAI_API_KEY: redact(process.env.OPENAI_API_KEY),
+      OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || "MISSING",
+      OPENAI_MODEL: process.env.OPENAI_MODEL || "MISSING",
+      EMBEDDING_MODEL: process.env.EMBEDDING_MODEL || "MISSING",
+    },
+  });
 }
